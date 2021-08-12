@@ -1,5 +1,9 @@
 /* eslint-disable no-undef */
 
+// Import and register viewer extensions
+import { DeviceExtension } from "./DeviceExtension.js";
+Autodesk.Viewing.theExtensionManager.registerExtension("DeviceExtension", DeviceExtension);
+
 /**
  * Initialize the configurations
  *

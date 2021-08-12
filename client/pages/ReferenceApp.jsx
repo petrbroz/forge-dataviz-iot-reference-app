@@ -69,6 +69,10 @@ function ReferenceApp(props) {
             viewerRef.current = event.data.viewer;
             let viewer = viewerRef.current;
 
+            // Workaround: since we cannot pass viewer extension IDs to <BaseApp> yet,
+            // we will load the extensions manually here
+            viewer.loadExtension("DeviceExtension");
+
             let model = event.data.data.model;
 
             let levelsExt = null;
