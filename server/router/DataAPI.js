@@ -1,6 +1,41 @@
+const fs = require('fs');
 const { CsvDataGateway } = require("forge-dataviz-iot-data-modules/server");
 const { SyntheticGateway } = require("forge-dataviz-iot-data-modules/server");
 const { AzureGateway } = require("forge-dataviz-iot-data-modules/server");
+
+/**
+ * Adds new device to the data gateway. Note that this only works if the gateway
+ * is a `SyntheticGateway` or a `CsvDataGateway`.
+ * @param {SyntheticGateway | CsvDataGateway} gateway Data gateway to add the device to.
+ * @param {string} deviceModelId Device model ID. Must already exist in the backend.
+ * @param {string} deviceId Device ID. Must be unique.
+ * @param {string} deviceName Device name.
+ * @param {object} position Device position represented as an `{ x: <number>, y: <number>, z: <number> }` object.
+ */
+async function addNewDevice(gateway, deviceModelId, deviceId, deviceName, position) {
+    // Check if the device model ID exists in our backend
+    const deviceModels = await gateway.getDeviceModels();
+    const deviceModel = deviceModels.find(model => model.deviceModelId === deviceModelId);
+    if (!deviceModel) {
+        throw new Error(`Could not find device model ${deviceModelId}.`);
+    }
+
+    // Check if the device ID isn't already used
+    let allDevices = JSON.parse(fs.readFileSync(gateway.deviceFile));
+    let modelDevices = allDevices.find(dev => dev.deviceModelId === deviceModelId) || { deviceModelId, deviceInfo };
+    if (modelDevices.deviceInfo.find(dev => dev.id === deviceId)) {
+        throw new Error(`Device ID ${deviceId} already exists.`);
+    }
+
+    // Add new device to the list and write back to disk
+    modelDevices.deviceInfo.push({
+        id: deviceId,
+        name: deviceName,
+        position: position,
+        lastActivityTime: new Date()
+    });
+    fs.writeFileSync(gateway.deviceFile, JSON.stringify(allDevices, null, 4));
+}
 
 module.exports = function (router) {
     function gatewayFactory(req, res, next) {
@@ -104,6 +139,21 @@ module.exports = function (router) {
                 console.error(error);
                 res.status(500).send(error);
             });
+    });
+
+    router.post("/api/devices", gatewayFactory, /* setCORS, */ async function (req, res) {
+        try {
+            const { deviceModelId, deviceId, deviceName, position } = req.body;
+            console.assert(deviceModelId);
+            console.assert(deviceId);
+            console.assert(deviceName);
+            console.assert(position);
+            await addNewDevice(req.dataGateway, deviceModelId, deviceId, deviceName, position);
+            res.status(200).end();
+        } catch (err) {
+            console.error(err);
+            res.status(500).send(err.message || err);
+        }
     });
 
     /**
